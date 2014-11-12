@@ -406,9 +406,7 @@ static void soundDriver()
         case SoundPause:
             // Wait for a 1/64 note.
             if (--soundTimer == 0) { // testing for 0 is always faster.
-                PORTC &= ~(_BV(5));
                 soundTimer = soundSpeed;
-                PORTC |= _BV(5);
                 // Check if the current note is still played.
                 if (--currentSoundDuration == 0) {
                     // If yes, parse the next tokens.
@@ -956,7 +954,7 @@ void MeggyJr::setup(FrameRate frameRate)
 {
     // 1. Setup the ports.
     //    Port C, all inputs with pull-ups.
-    DDRC  = B00100000; // all inputs.
+    DDRC  = B00000000; // all inputs.
     PORTC = B11111111; // pull ups.
     //    Port D, all output except Rx, initialize Low
     DDRD  = B11111110;
