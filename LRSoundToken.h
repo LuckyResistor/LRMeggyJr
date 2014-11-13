@@ -157,21 +157,21 @@ enum SoundToken : uint8_t {
     PlaySpeed200 = 0xbe, // Play at ~200 bpm (for effects)
     PlaySpeed350 = 0xbf, // Play at ~350 bpm (for effects)
     
-    NoteFadeOff    = 0xc0, // Stop any fading.
-    NoteFadeUp1    = 0xc1, // Fade every note up at speed 1
-    NoteFadeUp2    = 0xc2, // Fade every note up at speed 2
-    NoteFadeUp3    = 0xc3, // Fade every note up at speed 3
-    NoteFadeUp4    = 0xc4, // Fade every note up at speed 4
-    NoteFadeUp5    = 0xc5, // Fade every note up at speed 5
-    NoteFadeUp6    = 0xc6, // Fade every note up at speed 6
-    NoteFadeUp7    = 0xc7, // Fade every note up at speed 7
-    NoteFadeDown1  = 0xc9, // Fade every note down at speed 1
-    NoteFadeDown2  = 0xca, // Fade every note down at speed 2
-    NoteFadeDown3  = 0xcb, // Fade every note down at speed 3
-    NoteFadeDown4  = 0xcc, // Fade every note down at speed 4
-    NoteFadeDown5  = 0xcd, // Fade every note down at speed 5
-    NoteFadeDown6  = 0xce, // Fade every note down at speed 6
-    NoteFadeDown7  = 0xcf, // Fade every note down at speed 7
+    NoteShiftOff    = 0xc0, // Stop any shifting.
+    NoteShiftUp1    = 0xc1, // Shift every note up at speed 1
+    NoteShiftUp2    = 0xc2, // Shift every note up at speed 2
+    NoteShiftUp3    = 0xc3, // Shift every note up at speed 3
+    NoteShiftUp4    = 0xc4, // Shift every note up at speed 4
+    NoteShiftUp5    = 0xc5, // Shift every note up at speed 5
+    NoteShiftUp6    = 0xc6, // Shift every note up at speed 6
+    NoteShiftUp7    = 0xc7, // Shift every note up at speed 7
+    NoteShiftDown1  = 0xc9, // Shift every note down at speed 1
+    NoteShiftDown2  = 0xca, // Shift every note down at speed 2
+    NoteShiftDown3  = 0xcb, // Shift every note down at speed 3
+    NoteShiftDown4  = 0xcc, // Shift every note down at speed 4
+    NoteShiftDown5  = 0xcd, // Shift every note down at speed 5
+    NoteShiftDown6  = 0xce, // Shift every note down at speed 6
+    NoteShiftDown7  = 0xcf, // Shift every note down at speed 7
 };
 
 

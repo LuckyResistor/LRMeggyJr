@@ -355,12 +355,12 @@ static bool soundParseNextToken()
         soundSpeed = pgm_read_byte(&soundSpeedValues[token-PlaySpeed50]);
         soundTimer = soundSpeed; // reset the sound timer, just in case.
         return true;
-    } else if (token == NoteFadeOff) {
+    } else if (token == NoteShiftOff) {
         soundFadeState = 0;
-    } else if (token >= NoteFadeUp1 && token <= NoteFadeUp7) {
-        soundFadeState = token - NoteFadeUp1 + 1;
-    } else if (token >= NoteFadeDown1 && token <= NoteFadeDown7) {
-        soundFadeState = (token - NoteFadeDown1 + 1) | 0x80;
+    } else if (token >= NoteShiftUp1 && token <= NoteShiftUp7) {
+        soundFadeState = token - NoteShiftUp1 + 1;
+    } else if (token >= NoteShiftDown1 && token <= NoteShiftDown7) {
+        soundFadeState = (token - NoteShiftDown1 + 1) | 0x80;
     } else {
         // Skip any unknown token
         return true;
