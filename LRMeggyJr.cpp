@@ -357,14 +357,17 @@ static bool soundParseNextToken()
         return true;
     } else if (token == NoteShiftOff) {
         soundFadeState = 0;
+        return true;
     } else if (token >= NoteShiftUp1 && token <= NoteShiftUp7) {
         soundFadeState = token - NoteShiftUp1 + 1;
+        return true;
     } else if (token >= NoteShiftDown1 && token <= NoteShiftDown7) {
         soundFadeState = (token - NoteShiftDown1 + 1) | 0x80;
-    } else {
-        // Skip any unknown token
         return true;
     }
+
+    // Skip any unknown token
+    return true;
 }
 
 
@@ -468,16 +471,13 @@ static void ledDriverSetup()
     drivenFrame = 0;
 }
 
+    
 // This copies the "ledMatrix" into "displayLedMatrix" and then
 // precalculates the bits for the next row.
 static void ledDriverCopyDisplay()
 {
     // This is always row 7 and brightness 15
     // (calculated brightness 0 for next row)
-    
-    // prepare the pointer
-    uint32_t *source = reinterpret_cast<uint32_t*>(ledMatrix);
-    uint32_t *destination = reinterpret_cast<uint32_t*>(displayedLedMatrix);
     
     // Enable SPI (SPE) in master mode (MSTR).
     SPCR = _BV(SPE)|_BV(MSTR);
@@ -486,49 +486,79 @@ static void ledDriverCopyDisplay()
     SPDR = B00000000;
     
     // Copy some bytes (2 rows)
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
-    
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
-
+    asm volatile(
+                 
+    // copy 6*4=24bytes
+    "ldi r16, 6"                 "\n\t"
+    "L_l1%=: "
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "dec r16"                    "\n\t"
+    "brne L_l1%="                "\n\t"
+                 
     // Send byte 2:
-    SPDR = drivenBits[0];
-
-    // Copy some bytes (2 rows)
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
-    
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
+    "ld r16, %a[db]"             "\n\t"
+    "out %[spi], r16"            "\n\t"
+                
+    // copy 6*4=24bytes
+    "ldi r16, 6"                 "\n\t"
+    "L_l2%=: "
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "dec r16"                    "\n\t"
+    "brne L_l2%="                "\n\t"
 
     // Send byte 3:
-    SPDR = drivenBits[1];
-    
-    // Copy some bytes (2 rows)
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
-    
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
+    "ld r16, %a[db]"             "\n\t"
+    "out %[spi], r16"            "\n\t"
+                 
+    // copy 6*4=24bytes
+    "ldi r16, 6"                 "\n\t"
+    "L_l3%=: "
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "dec r16"                    "\n\t"
+    "brne L_l3%="                "\n\t"
 
     // Send byte 4:
-    SPDR = drivenBits[2];
-    
-    // Copy some bytes (2 rows)
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
-    
-    *destination++ = *source++;
-    *destination++ = *source++;
-    *destination++ = *source++;
+    "ld r16, %a[db]"             "\n\t"
+    "out %[spi], r16"            "\n\t"
+
+    // copy 6*4=24bytes
+    "ldi r16, 6"                 "\n\t"
+    "L_l4%=: "
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "ld __tmp_reg__, %a[src]+"   "\n\t"
+    "st %a[dst]+, __tmp_reg__"   "\n\t"
+    "dec r16"                    "\n\t"
+    "brne L_l4%="                "\n\t"
+    :
+    : [src] "x" (ledMatrix), [dst] "y" (displayedLedMatrix), [db] "z" (drivenBits), [spi] "I" (_SFR_IO_ADDR(SPDR))
+    : "r16"
+    );
     
     // Latch pulse
     PORTB |= _BV(2);
@@ -547,138 +577,143 @@ static void ledDriverCopyDisplay()
     PORTB &= pgm_read_byte(&drivenRowPortB[drivenRow]);
     
     // A pointer to the next row in the matrix.
-    uint8_t *lm = displayedLedMatrix;
+    uint8_t *lm = &displayedLedMatrix[((drivenRow+1)&numberOfRowMask)*ledMatrixRowSize];
     
     // The brightness value
-    uint8_t cb = 0;
+    uint8_t cb = drivenBrightness;
+    if (drivenRow == (numberOfRows-1)) {
+        // Because we calculate always the bits for the next row, we have to
+        // adjust the brightness level for the last row, because this is already
+        // the next one with different brigtness.
+        ++cb;
+        cb &= brightnessLevelsMask;
+    }
     
     asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+                
+    "ldd r16, %a[lm]+0" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r17, %a[lm]+1" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r17, %a[lm]+2" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[0]), [lm1] "d" (lm[1]), [lm2] "d" (lm[2]), [cb] "r" (cb)
-    : "r16"
-    );
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ldd r17, %a[lm]+3" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r17, %a[lm]+4" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r17, %a[lm]+5" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[3]), [lm1] "d" (lm[4]), [lm2] "d" (lm[5]), [cb] "r" (cb)
-    : "r16"
-    );
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ldd r17, %a[lm]+6" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r17, %a[lm]+7" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r17, %a[lm]+8" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[6]), [lm1] "d" (lm[7]), [lm2] "d" (lm[8]), [cb] "r" (cb)
-    : "r16"
-    );
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ldd r17, %a[lm]+9" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r17, %a[lm]+10" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r17, %a[lm]+11" "\n\t"
+    "mov r16, r17"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
     : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[9]), [lm1] "d" (lm[10]), [lm2] "d" (lm[11]), [cb] "r" (cb)
-    : "r16"
+    : [lm] "z" (lm), [cb] "r" (cb)
+    : "r16", "r17"
     );
     
     // Store the calculated bits for the next row:
@@ -691,11 +726,6 @@ static void ledDriverCopyDisplay()
 // This displays a normal row. And precalculates the bits for the next row.
 static void ledDriverNormalRow()
 {
-    // While the data is sent via SPI, the bits for the next row are calculated.
-    uint8_t r = 0; // Red bits
-    uint8_t g = 0; // Green bits
-    uint8_t b = 0; // Blue bits
-    
     // A pointer to the next row in the matrix.
     uint8_t *lm = &displayedLedMatrix[((drivenRow+1)&numberOfRowMask)*ledMatrixRowSize];
     
@@ -712,6 +742,11 @@ static void ledDriverNormalRow()
     // Enable SPI (SPE) in master mode (MSTR).
     SPCR = _BV(SPE)|_BV(MSTR);
     
+    // While the data is sent via SPI, the bits for the next row are calculated.
+    uint8_t r = 0; // Red bits
+    uint8_t g = 0; // Green bits
+    uint8_t b = 0; // Blue bits
+    
     // Send first byte. First byte is the external LED.
     if (drivenRow == 0) {
         SPDR = extLedMatrix;
@@ -719,149 +754,147 @@ static void ledDriverNormalRow()
         SPDR = B00000000;
     }
     
-    // White the first byte is sent, calculate some bits
     asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+
+    // While the first byte is sent, calculate some bits
+    "ldd r16, %a[lm]+0" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r16, %a[lm]+1" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r16, %a[lm]+2" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[0]), [lm1] "d" (lm[1]), [lm2] "d" (lm[2]), [cb] "r" (cb)
-    : "r16"
-    );
-    
     // Send byte 2:
-    SPDR = drivenBits[0];
-    
-    // While byte 2 is sent, calculate some bits.
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ld r16, %a[db]"    "\n\t"
+    "out %[spi], r16"   "\n\t"
+                 
+    // While byte 2 is sent, calculate some bits
+    "ldd r16, %a[lm]+3"    "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r16, %a[lm]+4" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r16, %a[lm]+5" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
 
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[3]), [lm1] "d" (lm[4]), [lm2] "d" (lm[5]), [cb] "r" (cb)
-    : "r16"
-    );
-    
     // Send byte 3:
-    SPDR = drivenBits[1];
-    
-    // While byte 3 is sent, calculate some bits.
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ldd r16, %a[db]+1" "\n\t"
+    "out %[spi], r16"   "\n\t"
+
+    // While byte 3 is sent, calculate some bits
+    "ldd r16, %a[lm]+6" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r16, %a[lm]+7" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r16, %a[lm]+8" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
-
-    : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[6]), [lm1] "d" (lm[7]), [lm2] "d" (lm[8]), [cb] "r" (cb)
-    : "r16"
-    );
-    
+                 
     // Send byte 4:
-    SPDR = drivenBits[2];
-    
-    // While byte 4 is sent, calculate some bits.
-    asm volatile(
-    "mov r16, %[lm0]"   "\n\t"
+    "ldd r16, %a[db]+2" "\n\t"
+    "out %[spi], r16"   "\n\t"
+                 
+    // While byte 4 is sent, calculate the rest
+    "ldd r16, %a[lm]+9" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[r]"          "\n\t"
-    "andi %[lm0], 0x0F" "\n\t"
-    "cp %[cb], %[lm0]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[g]"          "\n\t"
 
-    "mov r16, %[lm1]"   "\n\t"
+    "ldd r16, %a[lm]+10" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[b]"          "\n\t"
-    "andi %[lm1], 0x0F" "\n\t"
-    "cp %[cb], %[lm1]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[r]"          "\n\t"
 
-    "mov r16, %[lm2]"   "\n\t"
+    "ldd r16, %a[lm]+11" "\n\t"
+    "mov r17, r16"      "\n\t"
     "swap r16"          "\n\t"
     "andi r16, 0x0F"    "\n\t"
     "cp %[cb], r16"     "\n\t"
     "rol %[g]"          "\n\t"
-    "andi %[lm2], 0x0F" "\n\t"
-    "cp %[cb], %[lm2]"  "\n\t"
+    "andi r17, 0x0F"    "\n\t"
+    "cp %[cb], r17"     "\n\t"
     "rol %[b]"          "\n\t"
-
+                 
     : [r] "+r" (r), [g] "+r" (g), [b] "+r" (b)
-    : [lm0] "d" (lm[9]), [lm1] "d" (lm[10]), [lm2] "d" (lm[11]), [cb] "r" (cb)
-    : "r16"
+    : [lm] "z" (lm), [cb] "r" (cb), [spi] "I" (_SFR_IO_ADDR(SPDR)), [db] "y" (drivenBits)
+    : "r16", "r17"
     );
     
     // Latch pulse
