@@ -131,7 +131,13 @@ enum SoundToken : uint8_t {
     Play16  = 0x84, // Play the note for 1/16
     Play32  = 0x85, // Play the note for 1/32
     Play64  = 0x86, // Play the note for 1/64
-    
+
+    PlayWithPause1  = 0x88, // Play the note for 1/1 with 1/32 pause to the next note.
+    PlayWithPause2  = 0x89, // Play the note for 1/2 with 1/32 pause to the next note.
+    PlayWithPause4  = 0x8a, // Play the note for 1/4 with 1/32 pause to the next note.
+    PlayWithPause8  = 0x8b, // Play the note for 1/8 with 1/32 pause to the next note.
+    PlayWithPause16 = 0x8c, // Play the note for 1/16 with 1/32 pause to the next note.
+
     Pause1  = 0xa0, // Pause for 1/1
     Pause2  = 0xa1, // Pause for 1/2
     Pause4  = 0xa2, // Pause for 1/4
@@ -139,6 +145,12 @@ enum SoundToken : uint8_t {
     Pause16 = 0xa4, // Pause for 1/16
     Pause32 = 0xa5, // Pause for 1/32
     Pause64 = 0xa6, // Pause for 1/64
+
+    PlayStaccato1   = 0xa8, // Play the note for 1/1 staccato.
+    PlayStaccato2   = 0xa9, // Play the note for 1/2 staccato.
+    PlayStaccato4   = 0xaa, // Play the note for 1/4 staccato.
+    PlayStaccato8   = 0xab, // Play the note for 1/8 staccato.
+    PlayStaccato16  = 0xac, // Play the note for 1/16 staccato.
 
     PlaySpeed50  = 0xb0, // Play at ~50 bpm
     PlaySpeed60  = 0xb1, // Play at ~60 bpm

@@ -65,10 +65,10 @@ public:
     
     /// Scroll directions.
     enum ScrollDirection : uint8_t {
-        ScrollUp,
-        ScrollDown,
-        ScrollLeft,
-        ScrollRight
+        ScrollUp    = 0x0,
+        ScrollDown  = 0x1,
+        ScrollLeft  = 0x2,
+        ScrollRight = 0x3
     };
     
 public:
@@ -94,8 +94,15 @@ public:
     /// @param y The y position of the pixel (0-7).
     /// @param color The color for the pixel.
     ///
-    void setPixel(uint8_t x, uint8_t y, const Color &color);
-    void setPixelS(uint8_t x, uint8_t y, const Color &color);
+    void setPixel(int8_t x, int8_t y, const Color &color);
+
+    /// Set the color of a pixel ignore off screen pixels.
+    ///
+    /// @param x The x position of the pixel (0-7).
+    /// @param y The y position of the pixel (0-7).
+    /// @param color The color for the pixel.
+    ///
+    void setPixelS(int8_t x, int8_t y, const Color &color);
     
     /// Get the color from a pixel.
     ///
@@ -103,13 +110,38 @@ public:
     /// @param y The y position of the pixel (0-7).
     /// @return The color of the pixel.
     ///
-    Color getPixel(uint8_t x, uint8_t y) const;
-    Color getPixelS(uint8_t x, uint8_t y) const;
+    Color getPixel(int8_t x, int8_t y) const;
+
+    /// Get the color from a pixel ignore off screen pixels.
+    ///
+    /// @param x The x position of the pixel (0-7).
+    /// @param y The y position of the pixel (0-7).
+    /// @return The color of the pixel or black if the pixel is not on the screen.
+    ///
+    Color getPixelS(int8_t x, int8_t y) const;
     
     /// Fill a rectangle with a given color
     ///
-    void fillRect(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const Color &color);
-    void fillRectS(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const Color &color);
+    void fillRect(int8_t x, int8_t y, uint8_t width, uint8_t height, const Color &color);
+
+    /// Fill a rectangle with a given color ignore off screen pixels.
+    ///
+    void fillRectS(int8_t x, int8_t y, uint8_t width, uint8_t height, const Color &color);
+    
+    /// Draw a bitmap sprite on the screen.
+    ///
+    /// A sprite has to be defined in program memory and has to be a series of bytes.
+    /// Each set bit in the sprite is drawn on the screen, highest bit on the left and
+    /// lowest bit in the right side. The x/y coordinates define the top left corner of
+    /// the sprite. Off screen pixels are ignored.
+    ///
+    /// @param spriteData Points to a PROGMEM array of bytes for the bitmap.
+    /// @param spriteDataCount The number of bytes in the array. This defines the height of the sprite.
+    /// @param x The X position of the top left corner of the sprite.
+    /// @param y The Y position of the top left corner of the sprite.
+    /// @param color The color to use for the enabled pixels.
+    ///
+    void drawSprite(const uint8_t *spriteData, const uint8_t spriteDataCount, const int8_t x, const int8_t y, const Color &color);
     
     /// Scroll the current matrix in the given direction.
     ///
@@ -120,6 +152,14 @@ public:
     /// Fade pixels to black.
     ///
     void fadePixel();
+    
+    /// Get the width of the matrix
+    ///
+    inline uint8_t getScreenWidth() const { return 8; }
+    
+    /// Get the height of the matrix
+    ///
+    inline uint8_t getScreenHeight() const { return 8; }
     
     // --- Synchronization --
     
@@ -148,7 +188,18 @@ public:
     /// Obviously, this method should only be used for testing.
     ///
     uint32_t frameSyncShowLoad();
-    
+
+    /// Wait for the display synchronization and show the free RAM.
+    ///
+    /// This special version of the display synchronization works
+    /// similar to the frameSync() method, but uses the extra LEDs
+    /// on top of the display to visualize how much free RAM is left to
+    /// your program.
+    ///
+    /// Obviously, this method should only be used for testing.
+    ///
+    uint32_t frameSyncShowFreeRAM();
+
     
     // --- Extra LED Methods ---
     
@@ -277,7 +328,12 @@ public:
     ///
     /// You have to define the sound or melody in the program memory!
     ///
-    void playSound(const SoundToken* sound);
+    /// @param sound A pointer to the array in program memory for the sound.
+    /// @param priority The priority of the sound. If a sound with a higher
+    ///   priority is running, and the method is called with a sound with
+    ///   lower priority, the sound with the lower priority is ignored.
+    ///
+    void playSound(const SoundToken* sound, const uint8_t priority = 0);
     
     /// Stop any playing sound immediately.
     ///

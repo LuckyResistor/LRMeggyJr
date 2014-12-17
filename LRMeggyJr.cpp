@@ -68,6 +68,11 @@
 // controlled Using OCA1 to generated tones.
 //
 
+
+// declaration to measure the free memory.
+extern int __heap_start, *__brkval;
+
+
 namespace lr {
     
 
@@ -176,7 +181,7 @@ enum ApplicationFrameMeasureState : uint8_t {
 // ---------------------------------------------------------------------------
 
 // The pointer to the next sound token.
-const uint8_t *nextSoundToken;
+const uint8_t *soundNextToken;
     
 // The current speed of a 1/64 note of the sound.
 uint8_t soundSpeed;
@@ -195,26 +200,32 @@ enum SoundState : uint8_t {
 } soundState;
 
 // The current sound duration 64 = 1/1
-uint8_t currentSoundDuration;
+uint8_t soundCurrentDuration;
 
+// Stop the note after the given sound duration 64 = 1/1
+uint8_t soundPauseBelowDuration;
+    
 // The current note of the sound.
-uint8_t currentNote;
+uint8_t soundCurrentNote;
     
 // The state for fading.
 // 0 = no fading.
 // bit 6+7: 00 = fade up, 10 = fade down.
 // bit 0-3: fade speed
 uint8_t soundFadeState;
+
+// The priority of the current playing sound
+uint8_t soundPriority;
     
     
 // Variables for button handling.
 // ---------------------------------------------------------------------------
     
 // The current state of the buttons for the application frame.
-uint8_t currentButtonState;
+uint8_t buttonCurrentState;
 
 // The last state of the buttons from last application frame.
-uint8_t lastButtonState;
+uint8_t buttonLastState;
 
     
 
@@ -303,13 +314,28 @@ static void soundOn()
 // Read the next token from the sound.
 static uint8_t soundReadNextToken()
 {
-    if (nextSoundToken == 0) {
+    if (soundNextToken == 0) {
         return SoundEnd;
     } else {
-        const uint8_t token = pgm_read_byte(nextSoundToken);
-        ++nextSoundToken;
+        const uint8_t token = pgm_read_byte(soundNextToken);
+        ++soundNextToken;
         return token;
     }
+}
+    
+// Start the sound at the current frequency
+static void soundPlayAtFrequency()
+{
+    // Calculate the timer settings to set the frequency
+    uint16_t timerTop = pgm_read_word(&soundFreqBase[soundCurrentNote%12]);
+    uint8_t modifier = pgm_read_byte(&soundFreqMod[soundCurrentNote/12]);
+    timerTop >>= (modifier >> 4); // use upper nibble of modifier for shift.
+    TCCR1B = _BV(WGM13) | (modifier & B00000111); // set prescaling.
+    OCR1A = timerTop; // Set timer top.
+    if (soundState != SoundPlaying) {
+        soundOn();
+    }
+    soundState = SoundPlaying;
 }
     
     
@@ -321,30 +347,37 @@ static bool soundParseNextToken()
     if (token == SoundEnd) {
         soundOff();
         soundState = SoundIdle;
-        nextSoundToken = 0;
+        soundNextToken = 0;
+        soundPriority = 0;
         return false;
     } else if (token >= NoteA0 && token <= NoteGs7) {
         // Store the note
-        currentNote = token - NoteA0; // note index starting from 0
+        soundCurrentNote = token - NoteA0; // note index starting from 0
         return true;
     } else if (token >= Play1 && token <= Play64) {
         // Play a note at the given length
         soundTimer = soundSpeed;
-        currentSoundDuration = (64 >> (token - Play1));
-        // Calculate the timer settings to set the frequency
-        uint16_t timerTop = pgm_read_word(&soundFreqBase[currentNote%12]);
-        uint8_t modifier = pgm_read_byte(&soundFreqMod[currentNote/12]);
-        timerTop >>= (modifier >> 4); // use upper nibble of modifier for shift.
-        TCCR1B = _BV(WGM13) | (modifier & B00000111); // set prescaling.
-        OCR1A = timerTop; // Set timer top.
-        if (soundState != SoundPlaying) {
-            soundOn();
-        }
-        soundState = SoundPlaying;
+        soundCurrentDuration = (64 >> (token - Play1));
+        soundPauseBelowDuration = 0; // disable
+        soundPlayAtFrequency();
+        return false;
+    } else if (token >= PlayWithPause1 && token <= PlayWithPause16) {
+        // Play a note at the given length
+        soundTimer = soundSpeed;
+        soundCurrentDuration = (64 >> (token - PlayWithPause1));
+        soundPauseBelowDuration = 2;
+        soundPlayAtFrequency();
+        return false;
+    } else if (token >= PlayStaccato1 && token <= PlayStaccato16) {
+        // Play a note at the given length
+        soundTimer = soundSpeed;
+        soundCurrentDuration = (64 >> (token - PlayStaccato1));
+        soundPauseBelowDuration = soundCurrentDuration-2;
+        soundPlayAtFrequency();
         return false;
     } else if (token >= Pause1 && token <= Pause64) {
         soundTimer = soundSpeed;
-        currentSoundDuration = (64 >> (token - Pause1));
+        soundCurrentDuration = (64 >> (token - Pause1));
         if (soundState == SoundPlaying) {
             soundOff();
         }
@@ -375,13 +408,14 @@ static bool soundParseNextToken()
 static void soundDriverSetup()
 {
     // Initialize the variables
-    nextSoundToken = 0;
+    soundNextToken = 0;
     soundState = SoundIdle;
-    currentSoundDuration = 0;
-    currentNote = 20;
+    soundCurrentDuration = 0;
+    soundCurrentNote = 20;
     soundSpeed = 59; // ~120 bpm
     soundTimer = soundSpeed;
     soundFadeState = 0;
+    soundPriority = 0;
     soundOff();
 }
 
@@ -406,12 +440,19 @@ static void soundDriver()
                     }
                 }
             }
+            // Switch to pause if this is requested.
+            if (soundCurrentDuration<=soundPauseBelowDuration) {
+                soundOff();
+                soundState = SoundPause;
+            }
+            // no break, continues with the pause code.
+            
         case SoundPause:
             // Wait for a 1/64 note.
             if (--soundTimer == 0) { // testing for 0 is always faster.
                 soundTimer = soundSpeed;
                 // Check if the current note is still played.
-                if (--currentSoundDuration == 0) {
+                if (--soundCurrentDuration == 0) {
                     // If yes, parse the next tokens.
                     while (soundParseNextToken()) {}
                     break;
@@ -420,7 +461,7 @@ static void soundDriver()
             break;
             
         case SoundStopRequest:
-            nextSoundToken = 0;
+            soundNextToken = 0;
             soundFadeState = 0;
             soundState = SoundIdle;
             soundOff();
@@ -944,8 +985,8 @@ static void ledDriver()
                 applicationFrameMeasureState = ApplicationFrameMeasure_Ready;
             }
             // Manage the button states
-            lastButtonState = currentButtonState;
-            currentButtonState = (~(PINC) & B00111111);
+            buttonLastState = buttonCurrentState;
+            buttonCurrentState = (~(PINC) & B00111111);
         } else {
             ledDriverNormalRow();
         }
@@ -1026,13 +1067,18 @@ void MeggyJr::setup(FrameRate frameRate)
     applicationFrameRate = frameRate;
     
     // 9. Initialize button states.
-    currentButtonState = 0;
-    lastButtonState = 0;
+    buttonCurrentState = 0;
+    buttonLastState = 0;
     
     // 10. Initialize sound
     soundDriverSetup();
-    
-    // 11. Enable interrupts.
+   
+    // 11. Check if the any button is pressed to disable the sound
+    if ((~(PINC) & B00111111) > 0) {
+        soundState = SoundDisabled;
+    }
+ 
+    // 12. Enable interrupts.
     sei();
 }
 
@@ -1087,7 +1133,7 @@ void MeggyJr::clearPixels()
 }
     
     
-void MeggyJr::setPixel(uint8_t x, uint8_t y, const Color &color)
+void MeggyJr::setPixel(int8_t x, int8_t y, const Color &color)
 {
     const uint16_t c = color._color;
     uint8_t* const target = &ledMatrix[(y>>1)*3+x*ledMatrixRowSize];
@@ -1101,15 +1147,15 @@ void MeggyJr::setPixel(uint8_t x, uint8_t y, const Color &color)
 }
 
     
-void MeggyJr::setPixelS(uint8_t x, uint8_t y, const Color &color)
+void MeggyJr::setPixelS(int8_t x, int8_t y, const Color &color)
 {
-    if (x<8 && y<8) {
-        setPixelS(x, y, color);
+    if (x>=0 && y>=0 && x<getScreenWidth() && y<getScreenHeight()) {
+        setPixel(x, y, color);
     }
 }
     
     
-Color MeggyJr::getPixel(uint8_t x, uint8_t y) const
+Color MeggyJr::getPixel(int8_t x, int8_t y) const
 {
     const uint8_t* const target = &ledMatrix[(y>>1)*3+x*ledMatrixRowSize];
     if ((y & 1) == 0) {
@@ -1120,9 +1166,9 @@ Color MeggyJr::getPixel(uint8_t x, uint8_t y) const
 }
     
 
-Color MeggyJr::getPixelS(uint8_t x, uint8_t y) const
+Color MeggyJr::getPixelS(int8_t x, int8_t y) const
 {
-    if (x<8 && y<8) {
+    if (x>=0 && y>=0 && x<getScreenWidth() && y<getScreenHeight()) {
         return getPixel(x, y);
     } else {
         return Color::black();
@@ -1130,21 +1176,43 @@ Color MeggyJr::getPixelS(uint8_t x, uint8_t y) const
 }
 
     
-void MeggyJr::fillRect(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const Color &color)
+void MeggyJr::fillRect(int8_t x, int8_t y, uint8_t width, uint8_t height, const Color &color)
 {
-    for (uint8_t xd = 0; xd < width; ++xd) {
-        for (uint8_t yd = 0; yd < height; ++yd) {
+    for (int8_t xd = 0; xd < width; ++xd) {
+        for (int8_t yd = 0; yd < height; ++yd) {
             setPixel(x+xd, y+yd, color);
         }
     }
 }
 
     
-void MeggyJr::fillRectS(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const Color &color)
+void MeggyJr::fillRectS(int8_t x, int8_t y, uint8_t width, uint8_t height, const Color &color)
 {
-    for (uint8_t xd = 0; xd < width; ++xd) {
-        for (uint8_t yd = 0; yd < height; ++yd) {
+    for (int8_t xd = 0; xd < width; ++xd) {
+        for (int8_t yd = 0; yd < height; ++yd) {
             setPixelS(x+xd, y+yd, color);
+        }
+    }
+}
+
+
+void MeggyJr::drawSprite(const uint8_t *spriteData, const uint8_t spriteDataCount, const int8_t x, const int8_t y, const Color &color)
+{
+    // ignore sprite if it is off-screen.
+    if (x < -7 || x >= getScreenWidth()) {
+        return;
+    }
+    uint8_t currentByte;
+    for (int8_t dy = 0; dy < spriteDataCount; ++dy) {
+        const int8_t ty = y+dy;
+        if (ty >= 0 && ty < getScreenHeight()) {
+            currentByte = pgm_read_byte(spriteData + dy);
+            for (int8_t dx = 0; dx < 8; ++dx) {
+                if ((currentByte & 0x80) != 0) {
+                    setPixelS(x+dx, y+dy, color);
+                }
+                currentByte <<= 1;
+            }
         }
     }
 }
@@ -1356,155 +1424,174 @@ uint32_t MeggyJr::frameSyncShowLoad()
 }
     
     
+uint32_t MeggyJr::frameSyncShowFreeRAM()
+{
+    int free_memory;
+    free_memory = (int)&free_memory - (__brkval==0?(int)&__heap_start:(int)__brkval);
+    if (free_memory < 0) {
+        setExtraLeds(B11110000);
+    } else if (free_memory < 256) {
+        const uint16_t load = free_memory/32;
+        setExtraLeds(((uint16_t)1 << load)-1);
+    } else {
+        setExtraLeds(B11111111);
+    }
+    return frameSync();
+}
+
+    
 bool MeggyJr::isAButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonA;
-    const uint8_t current = currentButtonState & ButtonA;
+    const uint8_t last = buttonLastState & ButtonA;
+    const uint8_t current = buttonCurrentState & ButtonA;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isAButtonDown() const
 {
-    return (currentButtonState & ButtonA) != 0;
+    return (buttonCurrentState & ButtonA) != 0;
 }
 
     
 bool MeggyJr::isAButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonA;
-    const uint8_t current = currentButtonState & ButtonA;
+    const uint8_t last = buttonLastState & ButtonA;
+    const uint8_t current = buttonCurrentState & ButtonA;
     return last != 0 && last != current;
 }
 
     
 bool MeggyJr::isBButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonB;
-    const uint8_t current = currentButtonState & ButtonB;
+    const uint8_t last = buttonLastState & ButtonB;
+    const uint8_t current = buttonCurrentState & ButtonB;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isBButtonDown() const
 {
-    return (currentButtonState & ButtonB) != 0;
+    return (buttonCurrentState & ButtonB) != 0;
 }
 
     
 bool MeggyJr::isBButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonB;
-    const uint8_t current = currentButtonState & ButtonB;
+    const uint8_t last = buttonLastState & ButtonB;
+    const uint8_t current = buttonCurrentState & ButtonB;
     return last != 0 && last != current;
 }
 
     
 bool MeggyJr::isUpButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonUp;
-    const uint8_t current = currentButtonState & ButtonUp;
+    const uint8_t last = buttonLastState & ButtonUp;
+    const uint8_t current = buttonCurrentState & ButtonUp;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isUpButtonDown() const
 {
-    return (currentButtonState & ButtonUp) != 0;
+    return (buttonCurrentState & ButtonUp) != 0;
 }
 
     
 bool MeggyJr::isUpButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonUp;
-    const uint8_t current = currentButtonState & ButtonUp;
+    const uint8_t last = buttonLastState & ButtonUp;
+    const uint8_t current = buttonCurrentState & ButtonUp;
     return last != 0 && last != current;
 }
 
     
 bool MeggyJr::isDownButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonDown;
-    const uint8_t current = currentButtonState & ButtonDown;
+    const uint8_t last = buttonLastState & ButtonDown;
+    const uint8_t current = buttonCurrentState & ButtonDown;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isDownButtonDown() const
 {
-    return (currentButtonState & ButtonDown) != 0;
+    return (buttonCurrentState & ButtonDown) != 0;
 }
 
     
 bool MeggyJr::isDownButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonDown;
-    const uint8_t current = currentButtonState & ButtonDown;
+    const uint8_t last = buttonLastState & ButtonDown;
+    const uint8_t current = buttonCurrentState & ButtonDown;
     return last != 0 && last != current;
 }
 
     
 bool MeggyJr::isLeftButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonLeft;
-    const uint8_t current = currentButtonState & ButtonLeft;
+    const uint8_t last = buttonLastState & ButtonLeft;
+    const uint8_t current = buttonCurrentState & ButtonLeft;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isLeftButtonDown() const
 {
-    return (currentButtonState & ButtonLeft) != 0;
+    return (buttonCurrentState & ButtonLeft) != 0;
 }
 
     
 bool MeggyJr::isLeftButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonLeft;
-    const uint8_t current = currentButtonState & ButtonLeft;
+    const uint8_t last = buttonLastState & ButtonLeft;
+    const uint8_t current = buttonCurrentState & ButtonLeft;
     return last != 0 && last != current;
 }
 
     
 bool MeggyJr::isRightButtonPressed() const
 {
-    const uint8_t last = lastButtonState & ButtonRight;
-    const uint8_t current = currentButtonState & ButtonRight;
+    const uint8_t last = buttonLastState & ButtonRight;
+    const uint8_t current = buttonCurrentState & ButtonRight;
     return last == 0 && last != current;
 }
 
     
 bool MeggyJr::isRightButtonDown() const
 {
-    return (currentButtonState & ButtonRight) != 0;
+    return (buttonCurrentState & ButtonRight) != 0;
 }
 
     
 bool MeggyJr::isRightButtonReleased() const
 {
-    const uint8_t last = lastButtonState & ButtonRight;
-    const uint8_t current = currentButtonState & ButtonRight;
+    const uint8_t last = buttonLastState & ButtonRight;
+    const uint8_t current = buttonCurrentState & ButtonRight;
     return last != 0 && last != current;
 }
 
     
 uint8_t MeggyJr::getCurrentButtonState() const
 {
-    return currentButtonState;
+    return buttonCurrentState;
 }
 
     
 uint8_t MeggyJr::getLastButtonState() const
 {
-    return lastButtonState;
+    return buttonLastState;
 }
     
     
-void MeggyJr::playSound(const SoundToken *sound)
+void MeggyJr::playSound(const SoundToken *sound, const uint8_t priority)
 {
     cli();
-    nextSoundToken = (const uint8_t*)sound;
-    soundState = SoundNewRequest;
+    if (soundState != SoundDisabled && priority >= soundPriority) {
+        soundNextToken = (const uint8_t*)sound;
+        soundPriority = priority;
+        soundState = SoundNewRequest;
+    }
     sei();
 }
 
@@ -1512,7 +1599,10 @@ void MeggyJr::playSound(const SoundToken *sound)
 void MeggyJr::stopSound()
 {
     cli();
-    soundState = SoundStopRequest;
+    if (soundState != SoundDisabled) {
+        soundPriority = 0;
+        soundState = SoundStopRequest;
+    }
     sei();
 }
 
@@ -1522,7 +1612,7 @@ uint8_t MeggyJr::getPlayedNote() const
     uint8_t note;
     SoundState state;
     cli();
-    note = currentNote;
+    note = soundCurrentNote;
     state = soundState;
     sei();
     if (state == SoundPlaying) {
@@ -1558,27 +1648,15 @@ COLOR_DEF(gray, 7, 2, 1);
 COLOR_DEF(maximum, 15, 15, 15);
 
     
-Color::Color(uint8_t red, uint8_t green, uint8_t blue)
+Color::Color(const uint8_t red, const uint8_t green, const uint8_t blue)
 {
     _color = red << 8 | green << 4 | blue;
 }
 
     
-uint8_t Color::getRed() const
-{
-    return _color >> 8;
-}
-
-    
-uint8_t Color::getGreen() const
-{
-    return (_color >> 4) & 0x0F;
-}
-
-    
-uint8_t Color::getBlue() const
-{
-    return (_color & 0x0F);
+Color::Color(const uint16_t colorValue)
+    : _color(colorValue)
+{    
 }
 
     
